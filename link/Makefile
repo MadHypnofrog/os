@@ -1,5 +1,9 @@
+SOURCEDYNAMIC=${shell find -type f -name "dynamic_lib.so"}
 all: link.o static_lib.a dynamic_lib.so dynamic_linked_lib.so
-	gcc -fsanitize=address -Wall -o link link.o -L. static_lib.a -ldl dynamic_lib.so -Wl,-rpath,.
+	gcc -o link link.o -L. static_lib.a -ldl $(SOURCEDYNAMIC) -Wl,-rpath,.
+
+run:
+	LD_PRELOAD_PATH= ./link
 
 link.o: link.c
 	gcc -c link.c
