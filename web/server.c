@@ -60,7 +60,7 @@ int main (int argc, char** argv) {
 			close(sock);
 			continue;
 		}
-		if (length > maxlength) {
+		if (maxlength < 0) {
 			fprintf (stderr, "Warning: too much data received, some data might be lost\n");
 		}
 		if (strcmp(buffer, "exit") == 0) {

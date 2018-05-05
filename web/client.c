@@ -51,7 +51,7 @@ int main (int argc, char** argv) {
 	if (length == 0) {
 		fprintf (stderr, "Error: no data received: %s\n", strerror(errno));
 	}
-	if (length > maxlength) {
+	if (maxlength < 0) {
 		fprintf (stderr, "Warning: too much data received, some data might be lost\n");
 	}
 	printf ("Received back: %s\n", buffer);
