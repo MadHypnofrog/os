@@ -22,7 +22,10 @@ int main (int argc, char** argv) {
 	memset(&server, 0, sizeof(server));
 	server.sin_port = htons(PORT);
 	server.sin_family = AF_INET;
-	inet_pton(AF_INET, server_name, &server.sin_addr);
+	if (inet_pton(AF_INET, server_name, &server.sin_addr) != 1) {
+		fprintf (stderr, "Can't convert network address: %s\n", strerror(errno));
+		return 1;
+	}
 	int sock;
 	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		fprintf (stderr, "Can't create a sending socket: %s\n", strerror(errno));
@@ -32,7 +35,11 @@ int main (int argc, char** argv) {
 		fprintf (stderr, "Can't connect to server: %s\n", strerror(errno));
 		return 1;
 	}
-	send(sock, input, strlen(input) + 1, 0);
+	if (send(sock, input, strlen(input) + 1, 0) == -1) {
+		fprintf (stderr, "Error while sending data to server: %s\n", strerror(errno));
+		close(sock);
+		return 1;
+	}
 	int rec = 0, length = 0, maxlength = 1024;
 	char buffer[1024];
 	char* pbuffer = buffer;
@@ -40,8 +47,14 @@ int main (int argc, char** argv) {
 		pbuffer += rec;
 		length += rec;
 		maxlength -= rec;
-		printf ("Received: %s\n", buffer);
 	}
+	if (length == 0) {
+		fprintf (stderr, "Error: no data received: %s\n", strerror(errno));
+	}
+	if (length > maxlength) {
+		fprintf (stderr, "Warning: too much data received, some data might be lost\n");
+	}
+	printf ("Received back: %s\n", buffer);
 	close(sock);
 	return 0;
 }

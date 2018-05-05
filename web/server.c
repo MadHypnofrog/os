@@ -55,12 +55,22 @@ int main (int argc, char** argv) {
 				break;
 			}
 		}
+		if (length == 0) {
+			fprintf (stderr, "Error: no data received: %s\n", strerror(errno));
+			close(sock);
+			continue;
+		}
+		if (length > maxlength) {
+			fprintf (stderr, "Warning: too much data received, some data might be lost\n");
+		}
 		if (strcmp(buffer, "exit") == 0) {
 			printf ("Shutting down...\n");
 			close(sock);
 			break;
 		}
-		send(sock, buffer, length, 0);
+		if (send(sock, buffer, length, 0) == -1) {
+			fprintf (stderr, "Error while sending data to client: %s\n", strerror(errno));
+		}
 		close(sock);
 	}
 	close(listen_socket);
