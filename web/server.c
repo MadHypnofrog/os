@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+
 int main (int argc, char** argv) {
 	int PORT = 1337;
 	struct sockaddr_in server;
@@ -63,15 +64,25 @@ int main (int argc, char** argv) {
 		if (maxlength < 0) {
 			fprintf (stderr, "Warning: too much data received, some data might be lost\n");
 		}
+		char* sbuffer = buffer;
+		int sent = 0, length_s = 0, needed = length;
+		while (needed > 0 && (sent = send(sock, sbuffer, needed, 0)) > 0) {
+			sbuffer += sent;
+			length_s += sent;
+			needed -= sent;
+		}
+		if (length_s == 0) {
+			fprintf (stderr, "Error: no data sent: %s\n", strerror(errno));
+		}
+		if (needed > 0) {
+			fprintf (stderr, "Warning: not all data was sent to the client\n");
+		}
+		close(sock);
 		if (strcmp(buffer, "exit") == 0) {
 			printf ("Shutting down...\n");
 			close(sock);
 			break;
 		}
-		if (send(sock, buffer, length, 0) == -1) {
-			fprintf (stderr, "Error while sending data to client: %s\n", strerror(errno));
-		}
-		close(sock);
 	}
 	close(listen_socket);
 	return 0;

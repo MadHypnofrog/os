@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+
 int main (int argc, char** argv) {
 	char* server_name = "localhost";
 	int PORT = 1337;
@@ -22,7 +23,7 @@ int main (int argc, char** argv) {
 	memset(&server, 0, sizeof(server));
 	server.sin_port = htons(PORT);
 	server.sin_family = AF_INET;
-	if (inet_pton(AF_INET, server_name, &server.sin_addr) != 1) {
+	if (inet_pton(AF_INET, server_name, &server.sin_addr) == -1) {
 		fprintf (stderr, "Can't convert network address: %s\n", strerror(errno));
 		return 1;
 	}
@@ -35,10 +36,20 @@ int main (int argc, char** argv) {
 		fprintf (stderr, "Can't connect to server: %s\n", strerror(errno));
 		return 1;
 	}
-	if (send(sock, input, strlen(input) + 1, 0) == -1) {
-		fprintf (stderr, "Error while sending data to server: %s\n", strerror(errno));
+	char* sbuffer = input;
+	int sent = 0, length_s = 0, needed = strlen(input) + 1;
+	while (needed > 0 && (sent = send(sock, sbuffer, needed, 0)) > 0) {
+		sbuffer += sent;
+		length_s += sent;
+		needed -= sent;
+	}
+	if (length_s == 0) {
+		fprintf (stderr, "Error: no data sent: %s\n", strerror(errno));
 		close(sock);
 		return 1;
+	}
+	if (needed > 0) {
+		fprintf (stderr, "Warning: not all data was sent to the server\n");
 	}
 	int rec = 0, length = 0, maxlength = 1024;
 	char buffer[1024];
