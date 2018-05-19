@@ -6,7 +6,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
-
+#include <sys/epoll.h>
 int main (int argc, char** argv) {
 	char* server_name = "localhost";
 	int PORT = 1337;
@@ -51,27 +51,55 @@ int main (int argc, char** argv) {
 	if (needed > 0) {
 		fprintf (stderr, "Warning: not all data was sent to the server\n");
 	}
-	int rec = 0, length = 0, maxlength = 1024;
-	char buffer[1024];
-	char* pbuffer = buffer;
-	while ((rec = recv(sock, pbuffer, maxlength, 0)) > 0) {
-		pbuffer += rec;
-		length += rec;
-		maxlength -= rec;
-	}
-	if (length == 0) {
-		if (errno != 0) {
-			fprintf (stderr, "Error: no data received: %s\n", strerror(errno));
-		} else {
-			fprintf (stderr, "Error: server is offline\n");
-		}
+	int epoll_fd = epoll_create(5);
+	if (epoll_fd == -1) {
+		fprintf (stderr, "Can't create an epoll instance: %s\n", strerror(errno));
 		close(sock);
 		return 1;
 	}
-	if (maxlength < 0) {
-		fprintf (stderr, "Warning: too much data received, some data might be lost\n");
+	struct epoll_event events[1024];
+	struct epoll_event event;
+	event.data.fd = sock;
+	event.events = EPOLLIN;
+	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &event) == -1) {
+		fprintf (stderr, "Can't add a socket to epoll: %s\n", strerror(errno));
+		close(sock);
+		return 1;
 	}
-	printf ("Received back: %s\n", buffer);
-	close(sock);
+	int ready = epoll_wait(epoll_fd, events, 1024, -1);
+	if (ready == -1) {
+		fprintf (stderr, "An error occured while waiting: %s\n", strerror(errno));
+		close(sock);
+		return 1;
+	}
+	int cur = 0; 
+	for (cur = 0; cur < ready; cur++) {
+		int rec = 0, length = 0, maxlength = 1024, sock_r = events[cur].data.fd;
+		if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, sock_r, NULL) == -1) {
+			fprintf (stderr, "Can't delete a socket from epoll: %s\n", strerror(errno));
+			close(sock_r);
+			continue;
+		}
+		char buffer[1024];
+		char* pbuffer = buffer;
+		while ((rec = recv(sock_r, pbuffer, maxlength, 0)) > 0) {
+			pbuffer += rec;
+			length += rec;
+			maxlength -= rec;
+		}
+		if (length == 0) {
+			if (errno != 0) {
+				fprintf (stderr, "Error: no data received: %s\n", strerror(errno));
+			} else {
+				fprintf (stderr, "Error: server is offline\n");
+			}
+			close(sock_r);
+			return 1;
+		}
+		if (maxlength < 0) {
+			fprintf (stderr, "Warning: too much data received, some data might be lost\n");
+		}
+		printf ("Received back: %s\n", buffer);
+	}
 	return 0;
 }
