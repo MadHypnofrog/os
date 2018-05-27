@@ -30,10 +30,6 @@ int main (int argc, char** argv) {
 		fprintf (stderr, "Can't create a sending socket: %s\n", strerror(errno));
 		return 1;
 	}
-	if (connect(sock, (struct sockaddr*) &server, sizeof(server)) < 0) {
-		fprintf (stderr, "Can't connect to server: %s\n", strerror(errno));
-		return 1;
-	}
 	int epoll_fd = epoll_create(5);
 	if (epoll_fd == -1) {
 		fprintf (stderr, "Can't create an epoll instance: %s\n", strerror(errno));
@@ -50,6 +46,10 @@ int main (int argc, char** argv) {
 		return 1;
 	}
 	event.events = EPOLLIN;
+	if (connect(sock, (struct sockaddr*) &server, sizeof(server)) < 0) {
+		fprintf (stderr, "Can't connect to server: %s\n", strerror(errno));
+		return 1;
+	}
 	char input[1024];
 	printf ("Enter your message: ");
 	scanf ("%s", input);
