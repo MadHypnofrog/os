@@ -132,7 +132,6 @@ int main (int argc, char** argv) {
 			}
 		}
 	}
-	shutdown(epoll_fd, SHUT_RDWR);
 	close(epoll_fd);
 	close(listen_socket);
 	return 0;

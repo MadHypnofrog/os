@@ -26,7 +26,7 @@ int main (int argc, char** argv) {
 		return 1;
 	}
 	int sock;
-	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	if ((sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0)) < 0) {
 		fprintf (stderr, "Can't create a sending socket: %s\n", strerror(errno));
 		return 1;
 	}
@@ -43,12 +43,21 @@ int main (int argc, char** argv) {
 	if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &event) == -1) {
 		fprintf (stderr, "Can't add a socket to epoll: %s\n", strerror(errno));
 		close(sock);
+		close(epoll_fd);
 		return 1;
 	}
+	bool connected = true;
 	event.events = EPOLLIN;
 	if (connect(sock, (struct sockaddr*) &server, sizeof(server)) < 0) {
-		fprintf (stderr, "Can't connect to server: %s\n", strerror(errno));
-		return 1;
+		if (errno == EINPROGRESS) {
+			errno = 0;
+			connected = false;
+		} else {
+			fprintf (stderr, "Can't connect to server: %s\n", strerror(errno));
+			close(sock);
+			close(epoll_fd);
+			return 1;
+		}
 	}
 	char input[1024];
 	printf ("Enter your message: ");
@@ -60,11 +69,24 @@ int main (int argc, char** argv) {
 		if (ready == -1) {
 			fprintf (stderr, "An error occured while waiting: %s\n", strerror(errno));
 			close(sock);
+			close(epoll_fd);
 			return 1;
 		}
 		int cur = 0;
 		for (cur = 0; cur < ready; cur++) {
-			if (events[cur].events == EPOLLOUT) {
+			if ((events[cur].events & EPOLLOUT) != 0) {
+				if (!connected) {
+					int err = 0;
+					socklen_t len = sizeof(int);
+					if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len) != -1 && err == 0) {
+						connected = true;
+					} else {
+						fprintf (stderr, "Can't connect to the server: %s\n", strerror(errno));
+						close(sock);
+						close(epoll_fd);
+						return 1;
+					}
+				}
 				int sent = 0, length_s = 0, needed = strlen(input) + 1;
 				while (needed > 0 && (sent = send(sock, sbuffer, needed, 0)) > 0) {
 					sbuffer += sent;
@@ -84,9 +106,10 @@ int main (int argc, char** argv) {
 			}
 		}
 	}
-	if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, sock, NULL) == -1 || epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock, &event) == -1) {
+	if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, sock, &event) == -1) {
 		fprintf (stderr, "Can't replace a socket in epoll: %s\n", strerror(errno));
 		close(sock);
+		close(epoll_fd);
 		return 1;
 	}
 	int ready = epoll_wait(epoll_fd, events, 1024, -1);
@@ -98,7 +121,7 @@ int main (int argc, char** argv) {
 	}
 	int cur = 0; 
 	for (cur = 0; cur < ready; cur++) {
-		if (events[cur].events == EPOLLIN) {
+		if ((events[cur].events & EPOLLIN) != 0) {
 			int rec = 0, length = 0, maxlength = 1024, sock_r = events[cur].data.fd;
 			if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, sock_r, NULL) == -1) {
 				fprintf (stderr, "Can't delete a socket from epoll: %s\n", strerror(errno));
@@ -119,6 +142,8 @@ int main (int argc, char** argv) {
 					fprintf (stderr, "Error: server is offline\n");
 				}
 				close(sock_r);
+				close(epoll_fd);
+				close(sock);
 				return 1;
 			}
 			if (maxlength < 0) {
@@ -127,5 +152,7 @@ int main (int argc, char** argv) {
 			printf ("Received back: %s\n", buffer);
 		}
 	}
+	close(sock);
+	close(epoll_fd);
 	return 0;
 }
