@@ -73,11 +73,6 @@ void sighandler_2(int signum) {
 }
 
 void dump_memory(unsigned long long address, int length) {
-	if(address == 0) {
-		write(1, "Address of memory fault is 0\n", 29);
-		return;
-	}
-
 	struct sigaction new_action;
 	memset(&new_action, 0, sizeof(new_action));
 	new_action.sa_handler = sighandler_2;
@@ -94,12 +89,16 @@ void dump_memory(unsigned long long address, int length) {
     	if (i == 0) {
     		write (1, "[", 1);
     	}
-    	if(sigsetjmp(j_buffer, 0)) {
-    		write(1, "**", 2);
-    	} else {
-    		unsigned char * pc = (unsigned char *) (address + i);
-        	convert_to_hex(pc[0]);
-    	}
+	if (address + i <= 0) {
+		write (1, "  ", 2);
+	} else {
+    	`	if(sigsetjmp(j_buffer, 0)) {
+    			write(1, "**", 2);
+    		} else {
+    			unsigned char * pc = (unsigned char *) (address + i);
+        		convert_to_hex(pc[0]);
+    		}
+	}
     	if (i == 0) {
     		write (1, "]", 1);
     	}
